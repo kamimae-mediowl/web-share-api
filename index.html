@@ -92,7 +92,7 @@ const log = (msg) => {
 };
 
 // i のビットを title=4, text=2, url=1 にマッピングして 0..7 の 8 パターンを並べる
-function renderRows(tbodyId, useFiles) {
+function renderRows(tbodyId, useFiles, startNumber) {
   const tbody = document.getElementById(tbodyId);
   for (let i = 0; i < 8; i++) {
     const useTitle = !!(i & 4);
@@ -102,7 +102,7 @@ function renderRows(tbodyId, useFiles) {
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${i + 1}</td>
+      <td>${startNumber + i}</td>
       <td>${useTitle ? 'o' : 'x'}</td>
       <td>${useText ? 'o' : 'x'}</td>
       <td>${useUrl ? 'o' : 'x'}</td>
@@ -118,8 +118,8 @@ function renderRows(tbodyId, useFiles) {
   }
 }
 
-renderRows('rows-no-files', false);
-renderRows('rows-with-files', true);
+renderRows('rows-no-files', false, 1);
+renderRows('rows-with-files', true, 9);
 
 document.body.addEventListener('click', async (e) => {
   const button = e.target.closest('button[data-title]');
