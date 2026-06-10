@@ -18,7 +18,7 @@
 <body>
 
 <h1>Web Share API 全パターン検証</h1>
-<p class="note">
+<p>
   各行のボタンを押すと、その組み合わせで <code>navigator.share()</code> を呼ぶ。
   共有先アプリで「title / text / url / files」がどう扱われるかを観察する。
   HTTPS（または localhost）必須。
@@ -27,7 +27,7 @@
 <h2>送信値（固定）</h2>
 <pre id="values"></pre>
 
-<h2>16 パターン</h2>
+<h2>files なし（8 パターン）</h2>
 <table>
 <thead>
 <tr>
@@ -35,11 +35,24 @@
 <th>title</th>
 <th>text</th>
 <th>url</th>
-<th>files</th>
 <th>share</th>
 </tr>
 </thead>
-<tbody id="rows"></tbody>
+<tbody id="rows-no-files"></tbody>
+</table>
+
+<h2>files あり（8 パターン）</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>title</th>
+<th>text</th>
+<th>url</th>
+<th>share</th>
+</tr>
+</thead>
+<tbody id="rows-with-files"></tbody>
 </table>
 
 <h2>結果ログ</h2>
@@ -78,37 +91,43 @@ const log = (msg) => {
   logEl.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
 };
 
-const tbody = document.getElementById('rows');
+// i のビットを title=4, text=2, url=1 にマッピングして 0..7 の 8 パターンを並べる
+function renderRows(tbodyId, useFiles) {
+  const tbody = document.getElementById(tbodyId);
+  for (let i = 0; i < 8; i++) {
+    const useTitle = !!(i & 4);
+    const useText = !!(i & 2);
+    const useUrl = !!(i & 1);
+    const noField = !useTitle && !useText && !useUrl && !useFiles;
 
-// i のビットを title=8, text=4, url=2, files=1 にマッピング
-// 全部 false（i=0）はそもそも share() 不可なのでボタン disabled
-for (let i = 0; i < 16; i++) {
-  const useTitle = !!(i & 8);
-  const useText = !!(i & 4);
-  const useUrl = !!(i & 2);
-  const useFiles = !!(i & 1);
-  const noField = !useTitle && !useText && !useUrl && !useFiles;
-
-  const tr = document.createElement('tr');
-  tr.innerHTML = `
-    <td>${i + 1}</td>
-    <td class="${useTitle ? 'o' : 'x'}">${useTitle ? 'o' : 'x'}</td>
-    <td class="${useText ? 'o' : 'x'}">${useText ? 'o' : 'x'}</td>
-    <td class="${useUrl ? 'o' : 'x'}">${useUrl ? 'o' : 'x'}</td>
-    <td class="${useFiles ? 'o' : 'x'}">${useFiles ? 'o' : 'x'}</td>
-    <td><button data-i="${i}" ${noField ? 'disabled title="フィールド無しは仕様上 share 不可"' : ''}>Share</button></td>
-  `;
-  tbody.appendChild(tr);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${i + 1}</td>
+      <td>${useTitle ? 'o' : 'x'}</td>
+      <td>${useText ? 'o' : 'x'}</td>
+      <td>${useUrl ? 'o' : 'x'}</td>
+      <td><button
+        data-title="${useTitle}"
+        data-text="${useText}"
+        data-url="${useUrl}"
+        data-files="${useFiles}"
+        ${noField ? 'disabled title="フィールド無しは仕様上 share 不可"' : ''}
+      >Share</button></td>
+    `;
+    tbody.appendChild(tr);
+  }
 }
 
-tbody.addEventListener('click', async (e) => {
-  const button = e.target.closest('button');
+renderRows('rows-no-files', false);
+renderRows('rows-with-files', true);
+
+document.body.addEventListener('click', async (e) => {
+  const button = e.target.closest('button[data-title]');
   if (!button || button.disabled) return;
-  const i = Number(button.dataset.i);
-  const useTitle = !!(i & 8);
-  const useText = !!(i & 4);
-  const useUrl = !!(i & 2);
-  const useFiles = !!(i & 1);
+  const useTitle = button.dataset.title === 'true';
+  const useText = button.dataset.text === 'true';
+  const useUrl = button.dataset.url === 'true';
+  const useFiles = button.dataset.files === 'true';
 
   const data = {};
   if (useTitle) data.title = TITLE;
