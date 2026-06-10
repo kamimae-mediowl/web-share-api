@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Web Share API 全パターン検証</title>
+<style>
+  body { padding: 16px; max-width: 720px; margin: 0 auto; }
+  h2 { margin-top: 24px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+  th, td { border: 1px solid #ccc; padding: 6px; text-align: center; }
+  button { padding: 5px 12px; cursor: pointer; }
+  button:disabled { cursor: not-allowed; opacity: 0.4; }
+  pre { padding: 10px; overflow-x: auto; }
+  #log { margin-top: 16px; padding: 10px; min-height: 40px; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+
+<h1>Web Share API 全パターン検証</h1>
+<p class="note">
+  各行のボタンを押すと、その組み合わせで <code>navigator.share()</code> を呼ぶ。
+  共有先アプリで「title / text / url / files」がどう扱われるかを観察する。
+  HTTPS（または localhost）必須。
+</p>
+
+<h2>送信値（固定）</h2>
+<pre id="values"></pre>
+
+<h2>16 パターン</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>title</th>
+<th>text</th>
+<th>url</th>
+<th>files</th>
+<th>share</th>
+</tr>
+</thead>
+<tbody id="rows"></tbody>
+</table>
+
+<h2>結果ログ</h2>
+<div id="log">（ここに canShare / share の結果が表示されます）</div>
+
+<script>
+const TITLE = 'テストタイトル';
+const TEXT = 'テストメッセージ（textフィールド）';
+const URL_STR = 'https://example.com/page';
+
+document.getElementById('values').textContent = JSON.stringify({
+  title: TITLE,
+  text: TEXT,
+  url: URL_STR,
+  files: '200x200 PNG（オレンジ背景 + "TEST" 文字）',
+}, null, 2);
+
+async function makeTestFile() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 200;
+  canvas.height = 200;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#f85d02';
+  ctx.fillRect(0, 0, 200, 200);
+  ctx.fillStyle = 'white';
+  ctx.font = 'bold 32px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('TEST', 100, 100);
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+  return new File([blob], 'test.png', { type: 'image/png' });
+}
+
+const logEl = document.getElementById('log');
+const log = (msg) => {
+  logEl.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+};
+
+const tbody = document.getElementById('rows');
+
+// i のビットを title=8, text=4, url=2, files=1 にマッピング
+// 全部 false（i=0）はそもそも share() 不可なのでボタン disabled
+for (let i = 0; i < 16; i++) {
+  const useTitle = !!(i & 8);
+  const useText = !!(i & 4);
+  const useUrl = !!(i & 2);
+  const useFiles = !!(i & 1);
+  const noField = !useTitle && !useText && !useUrl && !useFiles;
+
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td>${i + 1}</td>
+    <td class="${useTitle ? 'o' : 'x'}">${useTitle ? 'o' : 'x'}</td>
+    <td class="${useText ? 'o' : 'x'}">${useText ? 'o' : 'x'}</td>
+    <td class="${useUrl ? 'o' : 'x'}">${useUrl ? 'o' : 'x'}</td>
+    <td class="${useFiles ? 'o' : 'x'}">${useFiles ? 'o' : 'x'}</td>
+    <td><button data-i="${i}" ${noField ? 'disabled title="フィールド無しは仕様上 share 不可"' : ''}>Share</button></td>
+  `;
+  tbody.appendChild(tr);
+}
+
+tbody.addEventListener('click', async (e) => {
+  const button = e.target.closest('button');
+  if (!button || button.disabled) return;
+  const i = Number(button.dataset.i);
+  const useTitle = !!(i & 8);
+  const useText = !!(i & 4);
+  const useUrl = !!(i & 2);
+  const useFiles = !!(i & 1);
+
+  const data = {};
+  if (useTitle) data.title = TITLE;
+  if (useText) data.text = TEXT;
+  if (useUrl) data.url = URL_STR;
+  if (useFiles) data.files = [await makeTestFile()];
+
+  const summary = `title=${useTitle ? 'o' : 'x'} text=${useText ? 'o' : 'x'} url=${useUrl ? 'o' : 'x'} files=${useFiles ? 'o' : 'x'}`;
+
+  if (!navigator.share) {
+    log(`navigator.share が存在しない（このブラウザは Web Share API 非対応）`);
+    return;
+  }
+
+  if (navigator.canShare) {
+    const canShare = navigator.canShare(data);
+    if (!canShare) {
+      log(`${summary}\ncanShare = false（この組み合わせは共有不可）`);
+      return;
+    }
+  }
+
+  try {
+    await navigator.share(data);
+    log(`${summary}\nshare 成功`);
+  } catch (error) {
+    if (error && error.name === 'AbortError') {
+      log(`${summary}\nユーザーがキャンセル（AbortError）`);
+    } else {
+      log(`${summary}\nエラー: ${error.name}: ${error.message}`);
+    }
+  }
+});
+</script>
+
+</body>
+</html>
